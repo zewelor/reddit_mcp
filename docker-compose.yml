@@ -1,0 +1,14 @@
+services:
+  reddit-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: reddit-mcp:latest
+    container_name: reddit-mcp-server
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
+    # MCP uses stdio, no ports needed
+    # If you need to debug, uncomment:
+    # environment:
+    #   - DEBUG=1

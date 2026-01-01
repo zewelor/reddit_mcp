@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+LICENSE
+*.md
+
+# Claude
+.claude
