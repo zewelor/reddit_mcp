@@ -8,7 +8,20 @@ services:
     stdin_open: true
     tty: true
     restart: unless-stopped
-    # MCP uses stdio, no ports needed
-    # If you need to debug, uncomment:
-    # environment:
-    #   - DEBUG=1
+
+    # Security hardening
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: "1000:1000"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+        reservations:
+          memory: 32M
