@@ -13,7 +13,7 @@ Dockerized MCP server providing Reddit API tools for Claude Code and other MCP c
 ### Using pre-built image from GHCR
 
 ```bash
-docker pull ghcr.io/zewelor/reddit_mcp:main
+docker pull ghcr.io/zewelor/reddit_mcp:latest
 ```
 
 Add to your `.mcp.json`:
@@ -23,7 +23,7 @@ Add to your `.mcp.json`:
   "mcpServers": {
     "reddit": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "ghcr.io/zewelor/reddit_mcp:main"]
+      "args": ["run", "-i", "--rm", "ghcr.io/zewelor/reddit_mcp:latest"]
     }
   }
 }
