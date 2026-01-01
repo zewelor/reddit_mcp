@@ -5,7 +5,7 @@ Dockerized MCP server providing Reddit API tools for Claude Code and other MCP c
 ## Tools
 
 - **reddit_search** - Search Reddit posts
-- **reddit_post** - Get post with comments
+- **reddit_post** - Get post with comments (optional: comment_limit, comment_depth)
 - **reddit_trending** - Get trending posts from subreddit
 
 ## Quick Start

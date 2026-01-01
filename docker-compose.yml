@@ -16,12 +16,3 @@ services:
     cap_drop:
       - ALL
     user: "1000:1000"
-
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: '0.5'
-        reservations:
-          memory: 32M

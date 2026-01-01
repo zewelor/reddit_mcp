@@ -21,6 +21,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      - name: Extract Ruby version from Dockerfile
+        id: ruby
+        run: |
+          image=$(awk 'toupper($1)=="FROM"{print $2; exit}' Dockerfile)
+          if [ -z "$image" ]; then
+            echo "Could not find FROM line in Dockerfile" >&2
+            exit 1
+          fi
+
+          image_no_digest=${image%%@*}
+          case "$image_no_digest" in
+            *:*) tag=${image_no_digest##*:} ;;
+            *)
+              echo "No tag found in FROM image: $image" >&2
+              exit 1
+              ;;
+          esac
+
+          version=${tag%%-*}
+          if [ -z "$version" ]; then
+            echo "Could not parse Ruby version from tag: $tag" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ steps.ruby.outputs.version }}
+
+      - name: Run unit tests
+        run: ruby -Itest test/server_test.rb
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
