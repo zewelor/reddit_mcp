@@ -10,7 +10,13 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(docker run:*)",
       "Bash(docker images:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(pipx run tiktoken --help:*)",
+      "Bash(pip install:*)",
+      "Bash(python3:*)",
+      "Bash(pipx install:*)",
+      "Bash(pipx upgrade:*)",
+      "Bash(cat:*)"
     ]
   }
 }
