@@ -1,13 +1,22 @@
 services:
+  dev:
+    build:
+      context: .
+      target: dev
+    tty: true
+    stdin_open: true
+    volumes:
+      - .:/app:cached
+      - bundler:/bundle
+
+  # Production MCP server
   reddit-mcp:
     build:
       context: .
-      dockerfile: Dockerfile
+      target: live
     image: reddit-mcp:latest
-    container_name: reddit-mcp-server
     stdin_open: true
     tty: true
-    restart: unless-stopped
 
     # Security hardening
     read_only: true
@@ -15,4 +24,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    user: "1000:1000"
+
+volumes:
+  bundler:

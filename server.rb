@@ -7,6 +7,7 @@
 require "json"
 require "net/http"
 require "uri"
+require "mcp"
 
 DEFAULT_USER_AGENT = "RedditMCP/1.0 (MCP Server)"
 USER_AGENT = ENV.fetch("REDDIT_MCP_USER_AGENT", DEFAULT_USER_AGENT)
@@ -159,6 +160,8 @@ class RedditFormatter
 end
 
 class RedditService
+  attr_reader :client, :formatter
+
   def initialize(client:, formatter:)
     @client = client
     @formatter = formatter
@@ -243,209 +246,44 @@ class RedditService
   end
 end
 
-# Simple MCP Server implementation
-class RedditMCPServer
-  def initialize
-    @client = RedditClient.new(user_agent: USER_AGENT)
-    @formatter = RedditFormatter.new
-    @service = RedditService.new(client: @client, formatter: @formatter)
+# MCP Tool definitions using the official SDK
 
-    @tools = {
-      "reddit_search" => {
-        name: "reddit_search",
-        description: "Search Reddit for posts. Returns titles, scores, and content previews.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: { type: "string", description: "Search query" },
-            subreddit: { type: "string", description: "Subreddit to search in (optional, omit for all)" },
-            sort: { type: "string", enum: SEARCH_SORTS, default: "relevance" },
-            time: { type: "string", enum: SEARCH_TIMES, default: "all" },
-            limit: { type: "integer", default: 10, maximum: MAX_SEARCH_LIMIT }
-          },
-          required: ["query"]
-        }
-      },
-      "reddit_post" => {
-        name: "reddit_post",
-        description: "Get a Reddit post with comments. Use comment_limit/comment_depth to fetch more.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            post_id: { type: "string", description: "Reddit post ID (e.g., '1abc123')" },
-            comment_limit: { type: "integer", default: 15, maximum: MAX_COMMENT_LIMIT },
-            comment_depth: { type: "integer", default: 2, maximum: MAX_COMMENT_DEPTH }
-          },
-          required: ["post_id"]
-        }
-      },
-      "reddit_trending" => {
-        name: "reddit_trending",
-        description: "Get trending/top posts from a subreddit. Good for understanding what's popular.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            subreddit: { type: "string", description: "Subreddit name (e.g., 'selfhosted')" },
-            time: { type: "string", enum: TRENDING_TIMES, default: "week" },
-            limit: { type: "integer", default: 10, maximum: MAX_TRENDING_LIMIT }
-          },
-          required: ["subreddit"]
-        }
-      }
-    }
-  end
+class RedditSearchTool < MCP::Tool
+  description "Search Reddit for posts. Returns titles, scores, and content previews."
 
-  def run
-    $stderr.puts "Reddit MCP Server started"
-    $stdout.sync = true
+  input_schema(
+    properties: {
+      query: { type: "string", description: "Search query" },
+      subreddit: { type: "string", description: "Subreddit to search in (optional, omit for all)" },
+      sort: { type: "string", enum: SEARCH_SORTS, default: "relevance", description: "Sort order" },
+      time: { type: "string", enum: SEARCH_TIMES, default: "all", description: "Time filter" },
+      limit: { type: "integer", default: 10, maximum: MAX_SEARCH_LIMIT, description: "Number of results" }
+    },
+    required: ["query"]
+  )
 
-    loop do
-      line = $stdin.gets
-      break unless line
+  def self.call(query:, subreddit: nil, sort: "relevance", time: "all", limit: 10, server_context:)
+    service = server_context[:service]
 
-      begin
-        request = JSON.parse(line)
-        response = handle_request(request)
-        puts JSON.generate(response) if response
-      rescue JSON::ParserError
-        puts JSON.generate(jsonrpc_error(nil, -32700, "Parse error"))
-      rescue => e
-        $stderr.puts "Error: #{e.message}"
-        $stderr.puts e.backtrace.first(5).join("\n")
-      end
-    end
-  end
+    # Validate and normalize inputs
+    query = query.to_s.strip
+    return error_response("query is required") if query.empty?
 
-  private
-
-  def handle_request(request)
-    return jsonrpc_error(nil, -32600, "Invalid Request") unless request.is_a?(Hash)
-
-    id = request["id"]
-    method = request["method"]
-    return jsonrpc_error(id, -32600, "Invalid Request") unless method.is_a?(String)
-
-    params = request["params"]
-    params = {} if params.nil?
-    return jsonrpc_error(id, -32602, "Params must be an object") unless params.is_a?(Hash)
-
-    case method
-    when "initialize"
-      jsonrpc_result(id, handle_initialize(params))
-    when "tools/list"
-      jsonrpc_result(id, handle_tools_list)
-    when "tools/call"
-      handle_tool_call(id, params)
-    when "notifications/initialized"
-      nil
-    else
-      jsonrpc_error(id, -32601, "Method not found: #{method}")
-    end
-  end
-
-  def handle_initialize(_params)
-    {
-      protocolVersion: "2024-11-05",
-      capabilities: { tools: {} },
-      serverInfo: { name: "reddit-mcp", version: "1.0.0" }
-    }
-  end
-
-  def handle_tools_list
-    { tools: @tools.values }
-  end
-
-  def handle_tool_call(id, params)
-    tool_name = params["name"]
-    args = params["arguments"] || {}
-
-    return jsonrpc_error(id, -32601, "Tool not found: #{tool_name}") unless @tools.key?(tool_name)
-    return jsonrpc_error(id, -32602, "Arguments must be an object") unless args.is_a?(Hash)
-
-    validation = validate_tool_args(tool_name, args)
-    return jsonrpc_error(id, -32602, validation[:message]) unless validation[:ok]
-
-    content = case tool_name
-              when "reddit_search"
-                query = normalize_query(args["query"])
-                subreddit = args.key?("subreddit") ? normalize_subreddit(args["subreddit"]) : nil
-                sort = args["sort"] || "relevance"
-                time = args["time"] || "all"
-                limit = parse_int(args["limit"], 10)
-                @service.search(query: query, subreddit: subreddit, sort: sort, time: time, limit: limit)
-              when "reddit_post"
-                post_id = normalize_post_id(args["post_id"])
-                comment_limit = parse_int(args["comment_limit"], 15)
-                comment_depth = parse_int(args["comment_depth"], 2)
-                @service.post(post_id: post_id, comment_limit: comment_limit, comment_depth: comment_depth)
-              when "reddit_trending"
-                subreddit = normalize_subreddit(args["subreddit"])
-                time = args["time"] || "week"
-                limit = parse_int(args["limit"], 10)
-                @service.trending(subreddit: subreddit, time: time, limit: limit)
-              else
-                "Unknown tool: #{tool_name}"
-              end
-
-    jsonrpc_result(id, { content: [{ type: "text", text: content }] })
-  end
-
-  def validate_tool_args(tool_name, args)
-    case tool_name
-    when "reddit_search"
-      return invalid("query is required") unless normalize_query(args["query"])
-      if args.key?("subreddit")
-        return invalid("subreddit must be a valid name") unless normalize_subreddit(args["subreddit"])
-      end
-      if args.key?("sort") && !SEARCH_SORTS.include?(args["sort"])
-        return invalid("sort must be one of: #{SEARCH_SORTS.join(', ')}")
-      end
-      if args.key?("time") && !SEARCH_TIMES.include?(args["time"])
-        return invalid("time must be one of: #{SEARCH_TIMES.join(', ')}")
-      end
-      if args.key?("limit") && !valid_int_range?(args["limit"], 1, MAX_SEARCH_LIMIT)
-        return invalid("limit must be an integer between 1 and #{MAX_SEARCH_LIMIT}")
-      end
-    when "reddit_post"
-      return invalid("post_id is required") unless normalize_post_id(args["post_id"])
-      if args.key?("comment_limit") && !valid_int_range?(args["comment_limit"], 1, MAX_COMMENT_LIMIT)
-        return invalid("comment_limit must be an integer between 1 and #{MAX_COMMENT_LIMIT}")
-      end
-      if args.key?("comment_depth") && !valid_int_range?(args["comment_depth"], 1, MAX_COMMENT_DEPTH)
-        return invalid("comment_depth must be an integer between 1 and #{MAX_COMMENT_DEPTH}")
-      end
-    when "reddit_trending"
-      return invalid("subreddit is required") unless normalize_subreddit(args["subreddit"])
-      if args.key?("time") && !TRENDING_TIMES.include?(args["time"])
-        return invalid("time must be one of: #{TRENDING_TIMES.join(', ')}")
-      end
-      if args.key?("limit") && !valid_int_range?(args["limit"], 1, MAX_TRENDING_LIMIT)
-        return invalid("limit must be an integer between 1 and #{MAX_TRENDING_LIMIT}")
-      end
+    if subreddit
+      subreddit = normalize_subreddit(subreddit)
+      return error_response("subreddit must be a valid name") unless subreddit
     end
 
-    { ok: true }
+    return error_response("sort must be one of: #{SEARCH_SORTS.join(', ')}") unless SEARCH_SORTS.include?(sort)
+    return error_response("time must be one of: #{SEARCH_TIMES.join(', ')}") unless SEARCH_TIMES.include?(time)
+
+    limit = limit.to_i.clamp(1, MAX_SEARCH_LIMIT)
+
+    result = service.search(query: query, subreddit: subreddit, sort: sort, time: time, limit: limit)
+    MCP::Tool::Response.new([{ type: "text", text: result }])
   end
 
-  def invalid(message)
-    { ok: false, message: message }
-  end
-
-  def jsonrpc_result(id, result)
-    { jsonrpc: "2.0", id: id, result: result }
-  end
-
-  def jsonrpc_error(id, code, message)
-    { jsonrpc: "2.0", id: id, error: { code: code, message: message } }
-  end
-
-  def normalize_query(value)
-    str = value.to_s.strip
-    return nil if str.empty?
-    str
-  end
-
-  def normalize_subreddit(value)
+  def self.normalize_subreddit(value)
     str = value.to_s.strip
     return nil if str.empty?
     str = str.sub(/^r\//i, "")
@@ -454,7 +292,38 @@ class RedditMCPServer
     str
   end
 
-  def normalize_post_id(value)
+  def self.error_response(message)
+    MCP::Tool::Response.new([{ type: "text", text: "Error: #{message}" }], is_error: true)
+  end
+end
+
+class RedditPostTool < MCP::Tool
+  description "Get a Reddit post with comments. Use comment_limit/comment_depth to fetch more."
+
+  input_schema(
+    properties: {
+      post_id: { type: "string", description: "Reddit post ID (e.g., '1abc123')" },
+      comment_limit: { type: "integer", default: 15, maximum: MAX_COMMENT_LIMIT, description: "Max comments" },
+      comment_depth: { type: "integer", default: 2, maximum: MAX_COMMENT_DEPTH, description: "Reply depth" }
+    },
+    required: ["post_id"]
+  )
+
+  def self.call(post_id:, comment_limit: 15, comment_depth: 2, server_context:)
+    service = server_context[:service]
+
+    # Validate and normalize inputs
+    post_id = normalize_post_id(post_id)
+    return error_response("post_id is required and must be valid") unless post_id
+
+    comment_limit = comment_limit.to_i.clamp(1, MAX_COMMENT_LIMIT)
+    comment_depth = comment_depth.to_i.clamp(1, MAX_COMMENT_DEPTH)
+
+    result = service.post(post_id: post_id, comment_limit: comment_limit, comment_depth: comment_depth)
+    MCP::Tool::Response.new([{ type: "text", text: result }])
+  end
+
+  def self.normalize_post_id(value)
     str = value.to_s.strip
     return nil if str.empty?
     str = str.sub(/^t3_/i, "")
@@ -462,20 +331,67 @@ class RedditMCPServer
     str
   end
 
-  def valid_int_range?(value, min, max)
-    int = Integer(value)
-    int >= min && int <= max
-  rescue ArgumentError, TypeError
-    false
+  def self.error_response(message)
+    MCP::Tool::Response.new([{ type: "text", text: "Error: #{message}" }], is_error: true)
+  end
+end
+
+class RedditTrendingTool < MCP::Tool
+  description "Get trending/top posts from a subreddit. Good for understanding what's popular."
+
+  input_schema(
+    properties: {
+      subreddit: { type: "string", description: "Subreddit name (e.g., 'selfhosted')" },
+      time: { type: "string", enum: TRENDING_TIMES, default: "week", description: "Time period" },
+      limit: { type: "integer", default: 10, maximum: MAX_TRENDING_LIMIT, description: "Number of posts" }
+    },
+    required: ["subreddit"]
+  )
+
+  def self.call(subreddit:, time: "week", limit: 10, server_context:)
+    service = server_context[:service]
+
+    # Validate and normalize inputs
+    subreddit = normalize_subreddit(subreddit)
+    return error_response("subreddit is required and must be valid") unless subreddit
+
+    return error_response("time must be one of: #{TRENDING_TIMES.join(', ')}") unless TRENDING_TIMES.include?(time)
+
+    limit = limit.to_i.clamp(1, MAX_TRENDING_LIMIT)
+
+    result = service.trending(subreddit: subreddit, time: time, limit: limit)
+    MCP::Tool::Response.new([{ type: "text", text: result }])
   end
 
-  def parse_int(value, default)
-    return default if value.nil?
-    Integer(value)
-  rescue ArgumentError, TypeError
-    default
+  def self.normalize_subreddit(value)
+    str = value.to_s.strip
+    return nil if str.empty?
+    str = str.sub(/^r\//i, "")
+    return nil if str.empty?
+    return nil unless str.match?(/\A[a-z0-9_]+\z/i)
+    str
+  end
+
+  def self.error_response(message)
+    MCP::Tool::Response.new([{ type: "text", text: "Error: #{message}" }], is_error: true)
   end
 end
 
 # Run the server
-RedditMCPServer.new.run if __FILE__ == $PROGRAM_NAME
+if __FILE__ == $PROGRAM_NAME
+  $stderr.puts "Reddit MCP Server started"
+
+  client = RedditClient.new(user_agent: USER_AGENT)
+  formatter = RedditFormatter.new
+  service = RedditService.new(client: client, formatter: formatter)
+
+  server = MCP::Server.new(
+    name: "reddit-mcp",
+    version: "1.0.0",
+    tools: [RedditSearchTool, RedditPostTool, RedditTrendingTool],
+    server_context: { service: service }
+  )
+
+  transport = MCP::Server::Transports::StdioTransport.new(server)
+  transport.open
+end

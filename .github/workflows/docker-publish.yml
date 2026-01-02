@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: 
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -50,9 +50,10 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ steps.ruby.outputs.version }}
+          bundler-cache: true
 
       - name: Run unit tests
-        run: ruby -Itest test/server_test.rb
+        run: bundle exec ruby -Itest test/server_test.rb
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -64,7 +65,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -72,7 +73,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=
@@ -81,6 +82,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: live
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -90,6 +92,6 @@ jobs:
 
       - name: Test image
         run: |
-          docker build -t test-image .
+          docker build -t test-image --target live .
           echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | docker run -i --rm test-image | grep -q "protocolVersion"
           echo "Image test passed!"

@@ -20,9 +20,32 @@ Reddit MCP Server - a Dockerized MCP server providing Reddit API tools for Claud
 ## Key Files
 
 - `server.rb` - Main MCP server implementation (Ruby)
-- `Dockerfile` - Docker image definition
-- `docker-compose.yml` - Docker Compose configuration
+- `Dockerfile` - Multi-stage Docker image definition
+- `compose.yml` - Docker Compose configuration
+- `Gemfile` / `Gemfile.lock` - Ruby dependencies
 - `.github/workflows/docker-publish.yml` - CI/CD workflow
+
+## Development Environment
+
+**IMPORTANT**: Ruby is NOT installed locally. All Ruby/Bundler commands must be run through Docker.
+
+### Running Ruby commands via Docker Compose
+
+The `dev` service uses the `dev` stage from Dockerfile (has build tools for native extensions).
+
+```bash
+# Build dev image (once, or after Dockerfile changes)
+docker compose build dev
+
+# Install/update gems (generate Gemfile.lock)
+docker compose run --rm dev bundle install
+
+# Run tests
+docker compose run --rm dev bundle exec ruby -Itest test/server_test.rb
+
+# Run any Ruby command
+docker compose run --rm dev ruby -e "puts RUBY_VERSION"
+```
 
 ## Testing
 

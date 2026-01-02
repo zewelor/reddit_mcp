@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "WebFetch(domain:github.com)",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(docker compose run:*)",
+      "Bash(docker compose build:*)",
+      "Bash(docker volume rm:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(docker run:*)",
+      "Bash(docker images:*)"
+    ]
+  }
+}
