@@ -1,7 +1,8 @@
-FROM ruby:4.0.0-slim AS base
+FROM ruby:4.0.0-alpine AS base
 
-RUN groupadd -g 1000 app && \
-    useradd -u 1000 -g app -d /app -s /bin/false app
+# Alpine uses addgroup/adduser instead of groupadd/useradd
+RUN addgroup -g 1000 app && \
+    adduser -u 1000 -G app -D -H -h /app -s /sbin/nologin app
 
 WORKDIR /app
 
@@ -14,16 +15,13 @@ ENV PATH="${BUNDLE_BIN}:${PATH}"
 
 FROM base AS basedev
 
-ARG DEV_PACKAGES="build-essential"
+# build-base is Alpine's equivalent to build-essential
+ARG DEV_PACKAGES="build-base"
 
 ENV BUNDLE_AUTO_INSTALL=true
 
-# hadolint ignore=SC2086,DL3008
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    $DEV_PACKAGES && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# hadolint ignore=SC2086
+RUN apk add --no-cache $DEV_PACKAGES
 
 FROM basedev AS dev
 
@@ -58,44 +56,10 @@ FROM base AS live
 ENV BUNDLE_DEPLOYMENT="1" \
     BUNDLE_WITHOUT="development:test"
 
-# Minimize attack surface by removing unnecessary packages
-# Keep: libc6, libssl3t64, libgmp10, zlib1g, ca-certificates, libyaml, libffi, openssl, coreutils, dash
-# hadolint ignore=DL3027
-RUN rm -rf /var/lib/apt/lists/* /var/cache/* /var/log/* \
-           /usr/share/doc /usr/share/man /usr/share/info /usr/share/lintian \
-           /usr/share/zsh /usr/share/bash-completion \
-           /tmp/* /root/.cache /root/.bundle && \
-    dpkg --purge --force-remove-essential --force-depends \
-        # Package management (not needed at runtime)
-        apt dpkg debianutils debian-archive-keyring debconf \
-        libdebconfclient0 libapt-pkg7.0 sqv \
-        # User management
-        passwd login login.defs base-passwd \
-        libpam-modules libpam-modules-bin libpam-runtime libpam0g \
-        # Text processing tools
-        perl-base mawk grep sed diffutils \
-        # System utilities
-        findutils hostname util-linux mount \
-        sysvinit-utils init-system-helpers \
-        # Terminal
-        ncurses-bin ncurses-base libtinfo6 \
-        # Archiving
-        tar gzip \
-        # Shells (keep dash for /bin/sh)
-        bash \
-        # Security/audit libs not needed for network-only app
-        libaudit-common libaudit1 libseccomp2 \
-        libselinux1 libsemanage-common libsemanage2 libsepol2 \
-        libcap-ng0 libcap2 libacl1 libattr1 \
-        # Block device / mount libs
-        libblkid1 libmount1 libsmartcols1 \
-        # Systemd libs
-        liblastlog2-2 libsystemd0 libudev1 \
-        # Misc
-        bsdutils \
-    2>/dev/null || true && \
-    rm -rf /var/lib/apt /var/lib/dpkg /etc/apt /etc/dpkg \
-           /usr/bin/apt* /usr/bin/dpkg* /usr/lib/apt /usr/lib/dpkg
+# Alpine is already minimal - just clean up cache and temp files
+# No complex dpkg --purge needed - these packages simply aren't installed
+RUN rm -rf /var/cache/apk/* /tmp/* /root/.cache /root/.bundle \
+           /usr/share/doc /usr/share/man
 
 # hadolint ignore=DL3045
 COPY --chown=app:app --from=live_builder $BUNDLE_PATH $BUNDLE_PATH
