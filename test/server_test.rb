@@ -16,13 +16,20 @@ class RedditServiceTest < Minitest::Test
     payload = build_post_payload
     service = RedditService.new(client: FakeClient.new(payload), formatter: RedditFormatter.new)
 
-    shallow = service.post(post_id: "abc123", comment_limit: 2, comment_depth: 1)
+    # Test with full format (has author names and footer)
+    shallow = service.post(post_id: "abc123", comment_limit: 2, comment_depth: 1, format: "full")
     refute_includes(shallow, "**u/child**")
     assert_includes(shallow, "Showing 2 comments")
 
-    deep = service.post(post_id: "abc123", comment_limit: 3, comment_depth: 2)
+    deep = service.post(post_id: "abc123", comment_limit: 3, comment_depth: 2, format: "full")
     assert_includes(deep, "**u/child**")
     assert_includes(deep, "Showing 3 comments")
+
+    # Test compact format (no author names, no footer)
+    compact = service.post(post_id: "abc123", comment_limit: 2, comment_depth: 1, format: "compact")
+    assert_includes(compact, "[5p]")
+    refute_includes(compact, "**u/parent**")
+    refute_includes(compact, "Showing")
   end
 
   def test_search_returns_formatted_results
@@ -44,10 +51,17 @@ class RedditServiceTest < Minitest::Test
     }
     service = RedditService.new(client: FakeClient.new(payload), formatter: RedditFormatter.new)
 
-    result = service.search(query: "test", subreddit: nil, sort: "relevance", time: "all", limit: 10)
-    assert_includes(result, "Test post")
-    assert_includes(result, "r/ruby")
-    assert_includes(result, "42 pts")
+    # Test full format
+    full = service.search(query: "test", subreddit: nil, sort: "relevance", time: "all", limit: 10, format: "full")
+    assert_includes(full, "Test post")
+    assert_includes(full, "r/ruby")
+    assert_includes(full, "42 pts")
+
+    # Test compact format (default)
+    compact = service.search(query: "test", subreddit: nil, sort: "relevance", time: "all", limit: 10, format: "compact")
+    assert_includes(compact, "Test post")
+    assert_includes(compact, "42p")
+    assert_includes(compact, "[abc123]")
   end
 
   def test_trending_returns_formatted_results
@@ -69,9 +83,17 @@ class RedditServiceTest < Minitest::Test
     }
     service = RedditService.new(client: FakeClient.new(payload), formatter: RedditFormatter.new)
 
-    result = service.trending(subreddit: "programming", time: "week", limit: 10)
-    assert_includes(result, "Trending post")
-    assert_includes(result, "r/programming")
+    # Test full format
+    full = service.trending(subreddit: "programming", time: "week", limit: 10, format: "full")
+    assert_includes(full, "Trending post")
+    assert_includes(full, "r/programming")
+    assert_includes(full, "100 pts")
+
+    # Test compact format
+    compact = service.trending(subreddit: "programming", time: "week", limit: 10, format: "compact")
+    assert_includes(compact, "Trending post")
+    assert_includes(compact, "100p")
+    assert_includes(compact, "[xyz789]")
   end
 
   private

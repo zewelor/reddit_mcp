@@ -8,6 +8,19 @@ Dockerized MCP server providing Reddit API tools for Claude Code and other MCP c
 - **reddit_post** - Get post with comments (optional: comment_limit, comment_depth)
 - **reddit_trending** - Get trending posts from subreddit
 
+### Output Format
+
+All tools support a `format` parameter:
+
+- `compact` (default) - Shorter output optimized for LLM context. Uses `p` for points, `c` for comments. No author names or dates.
+- `full` - Verbose output with authors, dates, and detailed formatting.
+
+Example:
+```json
+{"name": "reddit_search_tool", "arguments": {"query": "docker", "format": "compact"}}
+{"name": "reddit_search_tool", "arguments": {"query": "docker", "format": "full"}}
+```
+
 ## Quick Start
 
 ### Using pre-built image from GHCR

@@ -9,7 +9,8 @@
       "Bash(docker volume rm:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(docker run:*)",
-      "Bash(docker images:*)"
+      "Bash(docker images:*)",
+      "Bash(docker build:*)"
     ]
   }
 }
