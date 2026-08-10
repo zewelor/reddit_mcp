@@ -93,5 +93,5 @@ jobs:
       - name: Test image
         run: |
           docker build -t test-image --target live .
-          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | docker run -i --rm test-image | grep -q "protocolVersion"
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1.0.0"}}}' | docker run -i --rm test-image | grep -q "protocolVersion"
           echo "Image test passed!"
