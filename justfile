@@ -1,5 +1,5 @@
 # Use Docker's own context filtering so `!` rules are evaluated correctly.
-test_dockerignore:
+show_dockerignore:
   #!/bin/sh
   set -eu
   LC_ALL=C
