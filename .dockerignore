@@ -1,25 +1,28 @@
-# Git
-.git
-.gitignore
+# Ignore all hidden files and directories (.git, .github, .vscode, .bundle, .env)
+.*
+!.ruby-version
 
-# GitHub
-.github
-
-# IDE
-.idea
-.vscode
-*.swp
-*.swo
-
-# Docker
-Dockerfile
-docker-compose*.yml
-.dockerignore
-
-# Documentation
-README.md
-LICENSE
+# Documentation and repository config
 *.md
+docs/
+/*.toml
+/*.yml
+/*.yaml
+/*.json
+Dockerfile*
+dockerized*
+justfile
+Justfile
+LICENSE
 
-# Claude
-.claude
+# Logs, temporary files, storage, keys
+log/
+tmp/
+coverage/
+vendor/
+node_modules/
+config/*.key
+config/credentials/*.key
+storage/
+public/assets
+test

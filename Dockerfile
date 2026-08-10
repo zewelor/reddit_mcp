@@ -64,8 +64,10 @@ RUN rm -rf /var/cache/apk/* /tmp/* /root/.cache /root/.bundle \
 # hadolint ignore=DL3045
 COPY --chown=app:app --from=live_builder $BUNDLE_PATH $BUNDLE_PATH
 # hadolint ignore=DL3045
-COPY --chown=app:app . ./
+COPY --chown=app:app Gemfile Gemfile.lock server.rb ./
+# hadolint ignore=DL3045
+COPY --chown=app:app formatters/ ./formatters/
 
 USER app
 
-ENTRYPOINT ["bundle", "exec", "ruby", "server.rb"]
+CMD ["bundle", "exec", "ruby", "server.rb"]
