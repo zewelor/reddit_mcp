@@ -9,6 +9,7 @@ WORKDIR /app
 # We mount whole . dir into app, so vendor/bundle would get overwritten
 ENV BUNDLE_PATH=/bundle \
     BUNDLE_BIN=/bundle/bin \
+    BUNDLE_VERSION=system \
     GEM_HOME=/bundle
 
 ENV PATH="${BUNDLE_BIN}:${PATH}"
